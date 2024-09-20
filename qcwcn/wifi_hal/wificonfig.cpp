@@ -78,11 +78,8 @@
 #include "wificonfigcommand.h"
 #include "ifaceeventhandler.h"
 
-
 #define NUM_OF_SAR_LIMITS_SPECS 2
 #define NUM_OF_SPEC_CHAINS 2
-
-
 
 /* Implementation of the API functions exposed in wifi_config.h */
 wifi_error wifi_extended_dtim_config_set(wifi_request_id id,
@@ -594,7 +591,6 @@ cleanup:
     return ret;
 }
 
-
 wifi_error wifi_select_SARv01_tx_power_scenario(wifi_interface_handle handle,
                                          wifi_power_scenario scenario)
 {
@@ -784,7 +780,7 @@ wifi_error wifi_select_SARv02_tx_power_scenario(wifi_interface_handle handle,
 
 
     nlSpecList = wifiConfigCommand->attr_start(QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC);
-    if(!nlSpecList)
+    if (!nlSpecList)
     {
         ALOGE("Cannot create spec list");
         ret = WIFI_ERROR_UNKNOWN;
@@ -794,11 +790,11 @@ wifi_error wifi_select_SARv02_tx_power_scenario(wifi_interface_handle handle,
 
     for (int i = 0; i < NUM_OF_SPEC_CHAINS; i++) {
         nlSpec = wifiConfigCommand->attr_start(0);
-        if(!nlSpec) {
+        if (!nlSpec) {
             ret = WIFI_ERROR_UNKNOWN;
             goto cleanup;
         }
-        if(wifiConfigCommand->put_u32(
+        if (wifiConfigCommand->put_u32(
             QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_CHAIN,
             i))
         {
@@ -807,7 +803,7 @@ wifi_error wifi_select_SARv02_tx_power_scenario(wifi_interface_handle handle,
             goto cleanup;
         }
 
-        if(wifiConfigCommand->put_u32(
+        if (wifiConfigCommand->put_u32(
             QCA_WLAN_VENDOR_ATTR_SAR_LIMITS_SPEC_POWER_LIMIT_INDEX,
             power_lim_idx))
         {
@@ -854,8 +850,8 @@ wifi_error wifi_select_tx_power_scenario(wifi_interface_handle handle,
               info->sar_version == QCA_WLAN_VENDOR_SAR_VERSION_3)
         return wifi_select_SARv02_tx_power_scenario(handle,scenario);
     else {
-      ALOGE("wifi_select_tx_power_scenario %u invalid or not supported", (u32)info->sar_version);
-      return WIFI_ERROR_UNKNOWN;
+        ALOGE("wifi_select_tx_power_scenario %u invalid or not supported", (u32)info->sar_version);
+        return WIFI_ERROR_UNKNOWN;
     }
 }
 
@@ -1571,6 +1567,15 @@ cleanup:
     return (wifi_error)ret;
 }
 
+static int wifi_get_wlan0_id(hal_info *info)
+{
+    int i;
+    for (i = 0; i < info->num_interfaces; i++)
+        if (!strncmp(info->interfaces[i]->name, "wlan0", 5))
+            return info->interfaces[i]->id;
+    return -1;
+}
+
 /**
  * Set STA + STA use case
  */
@@ -1579,6 +1584,7 @@ wifi_error wifi_multi_sta_set_use_case(wifi_handle handle,
 {
     int requestId, ret = 0;
     u8 use_case;
+    int index;
     WiFiConfigCommand *wifiConfigCommand;
     if (!handle) {
         ALOGE("%s: Error wifi_handle NULL", __FUNCTION__);
@@ -1628,8 +1634,14 @@ wifi_error wifi_multi_sta_set_use_case(wifi_handle handle,
     }
 
     /* Set the interface Id of the message. */
-    if (wifiConfigCommand->put_u32(NL80211_ATTR_IFINDEX,
-                                   info->interfaces[0]->id)) {
+    index = wifi_get_wlan0_id(info);
+    if (index == -1) {
+        ALOGE("%s: failed to obtain wlan0", __FUNCTION__);
+        ret = WIFI_ERROR_UNKNOWN;
+        goto cleanup;
+    }
+
+    if (wifiConfigCommand->put_u32(NL80211_ATTR_IFINDEX, index)) {
         ret = WIFI_ERROR_UNKNOWN;
         ALOGE("%s: Failed to put iface id", __FUNCTION__);
         goto cleanup;
@@ -1664,4 +1676,78 @@ wifi_error wifi_multi_sta_set_use_case(wifi_handle handle,
 cleanup:
     delete wifiConfigCommand;
     return (wifi_error)ret;
+}
+
+/**
+ * Invoked to set voip optimization mode for the provided STA iface
+ */
+ wifi_error wifi_set_voip_mode(wifi_interface_handle iface, wifi_voip_mode mode)
+{
+    int requestId;
+    WiFiConfigCommand *wifiConfigCommand;
+    wifi_error ret;
+
+    struct nlattr *nlData;
+    interface_info *ifaceInfo = getIfaceInfo(iface);
+
+    wifi_handle wifiHandle = getWifiHandle(iface);
+    if (!wifiHandle) {
+        ALOGE("%s: Error wifi_handle NULL", __FUNCTION__);
+        return WIFI_ERROR_UNKNOWN;
+    }
+
+    requestId = get_requestid();
+    ALOGV("%s: voip mode=%d", __FUNCTION__, mode);
+    wifiConfigCommand = new WiFiConfigCommand(
+                            wifiHandle,
+                            requestId,
+                            OUI_QCA,
+                            QCA_NL80211_VENDOR_SUBCMD_SET_WIFI_CONFIGURATION);
+
+    if (wifiConfigCommand == NULL) {
+        ALOGE("%s: Error wifiConfigCommand NULL", __FUNCTION__);
+        return WIFI_ERROR_UNKNOWN;
+    }
+
+    /* Create the NL message. */
+    ret = wifiConfigCommand->create();
+    if (ret < 0) {
+        ALOGE("%s: failed to create NL msg. Error:%d", __FUNCTION__, ret);
+        goto cleanup;
+    }
+
+    /* Set the interface Id of the message. */
+    ret = wifiConfigCommand->set_iface_id(ifaceInfo->name);
+    if (ret < 0) {
+        ALOGE("%s: failed to set iface id. Error:%d", __FUNCTION__, ret);
+        goto cleanup;
+    }
+
+    /* Add the vendor specific attributes for the NL command. */
+    nlData = wifiConfigCommand->attr_start(NL80211_ATTR_VENDOR_DATA);
+    if (!nlData) {
+        ALOGE("%s: failed attr_start for VENDOR_DATA", __FUNCTION__);
+        ret = WIFI_ERROR_UNKNOWN;
+        goto cleanup;
+    }
+
+    if (wifiConfigCommand->put_u8(QCA_WLAN_VENDOR_ATTR_CONFIG_WFC_STATE,
+        (mode==WIFI_VOIP_MODE_ON) ? 1 : 0)) {
+        ALOGE("%s: failed to put vendor data", __FUNCTION__);
+        ret = WIFI_ERROR_UNKNOWN;
+        goto cleanup;
+    }
+    wifiConfigCommand->attr_end(nlData);
+
+    /* Send the NL msg. */
+    wifiConfigCommand->waitForRsp(false);
+    ret = wifiConfigCommand->requestEvent();
+    if (ret != 0) {
+        ALOGE("%s: requestEvent Error:%d", __FUNCTION__, ret);
+        goto cleanup;
+    }
+
+cleanup:
+    delete wifiConfigCommand;
+    return ret;
 }

@@ -611,7 +611,7 @@ int WifihalGeneric::handleResponse(WifiEvent &reply)
                 nla_parse(tb_vendor, QCA_WLAN_VENDOR_ATTR_SAR_CAPABILITY_MAX,
                           (struct nlattr *)mVendorData,mDataLen, NULL);
 
-                if(tb_vendor[QCA_WLAN_VENDOR_ATTR_SAR_CAPABILITY_VERSION])
+                if (tb_vendor[QCA_WLAN_VENDOR_ATTR_SAR_CAPABILITY_VERSION])
                 {
                     mInfo->sar_version = (qca_wlan_vendor_sar_version) nla_get_u32(tb_vendor[
                                                QCA_WLAN_VENDOR_ATTR_SAR_CAPABILITY_VERSION]);
@@ -1140,8 +1140,6 @@ void WifihalGeneric::freeCachedRadarHistory() {
     }
 }
 
-
-
 wifi_error WifihalGeneric::getSarVersion(wifi_interface_handle handle)
 {
     wifi_error ret;
@@ -1168,5 +1166,3 @@ wifi_error WifihalGeneric::getSarVersion(wifi_interface_handle handle)
 
     return ret;
 }
-
-
