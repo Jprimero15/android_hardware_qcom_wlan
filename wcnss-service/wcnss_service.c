@@ -37,7 +37,6 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <utime.h>
 #include <sys/stat.h>
 #include <sys/sendfile.h>
-#include <unistd.h>
 #define LOG_TAG "wcnss_service"
 #include <cutils/log.h>
 #include <cutils/properties.h>
