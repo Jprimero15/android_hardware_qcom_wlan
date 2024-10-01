@@ -12,8 +12,7 @@ ifeq ($(strip $(TARGET_USES_QCOM_WCNSS_QMI)),true)
 ifeq ($(TARGET_USES_WCNSS_MAC_ADDR_REV),true)
 LOCAL_CFLAGS += -DWCNSS_QMI_MAC_ADDR_REV
 endif
-LOCAL_CFLAGS += -DWCNSS_QMI -DMDM_DETECT
-LOCAL_HEADER_LIBRARIES += libmdmdetect_headers
+LOCAL_CFLAGS += -DWCNSS_QMI
 ifeq ($(filter 10% Q% q%,$(TARGET_PLATFORM_VERSION)),)
 #For Android R and above, assuming not compiling on Q and lower
 LOCAL_HEADER_LIBRARIES += libqmi_common_headers
